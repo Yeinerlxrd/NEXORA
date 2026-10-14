@@ -67,4 +67,4 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl --fail --silent http://127.0.0.1/api/health || exit 1
 
-CMD ["apache2-foreground"]
+CMD ["sh", "-c", "set -eu; mods=/etc/apache2/mods-enabled; find \"$mods\" -maxdepth 1 -type l \\( -name 'mpm_*.load' -o -name 'mpm_*.conf' \\) -delete; a2enmod mpm_prefork >/dev/null; mpm_output=\"$(apache2ctl -M 2>&1)\" || { printf '%s\\n' 'ERROR: apache2ctl could not load the Apache configuration:' \"$mpm_output\" >&2; exit 1; }; mpm_modules=\"$(printf '%s\\n' \"$mpm_output\" | awk '$1 ~ /^mpm_.*_module$/ { print $1 }')\"; if [ \"$mpm_modules\" != 'mpm_prefork_module' ]; then printf '%s\\n' 'ERROR: expected only mpm_prefork_module; Apache detected:' \"${mpm_modules:-none}\" >&2; exit 1; fi; exec apache2-foreground"]
