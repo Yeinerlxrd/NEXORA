@@ -25,12 +25,11 @@ RUN apt-get update \
         pcntl \
         pdo_sqlite \
         zip \
-    && if [ -e /etc/apache2/mods-enabled/mpm_event.load ]; then a2dismod mpm_event; fi \
-    && if [ -e /etc/apache2/mods-enabled/mpm_worker.load ]; then a2dismod mpm_worker; fi \
+    && find /etc/apache2/mods-enabled -maxdepth 1 -type l \( -name 'mpm_*.load' -o -name 'mpm_*.conf' \) -delete \
     && a2enmod mpm_prefork \
     && a2enmod headers rewrite setenvif \
-    && test "$(apache2ctl -M | grep -Ec 'mpm_(event|worker|prefork)_module')" -eq 1 \
-    && apache2ctl -M | grep -q 'mpm_prefork_module' \
+    && test "$(find /etc/apache2/mods-enabled -maxdepth 1 -type l \( -name 'mpm_*.load' -o -name 'mpm_*.conf' \) -printf '%f\n' | sed 's/\.[^.]*$//' | sort -u)" = "mpm_prefork" \
+    && test "$(apache2ctl -M | awk '$1 ~ /^mpm_.*_module$/ { print $1 }')" = "mpm_prefork_module" \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2.8 /usr/bin/composer /usr/local/bin/composer
