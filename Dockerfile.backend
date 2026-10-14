@@ -1,0 +1,66 @@
+FROM php:8.2-apache-bookworm AS base
+
+WORKDIR /var/www/html
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        libfreetype6-dev \
+        libicu-dev \
+        libjpeg62-turbo-dev \
+        libonig-dev \
+        libpng-dev \
+        libsqlite3-dev \
+        libxml2-dev \
+        libzip-dev \
+        unzip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" \
+        bcmath \
+        exif \
+        gd \
+        intl \
+        mbstring \
+        pdo_mysql \
+        pcntl \
+        pdo_sqlite \
+        zip \
+    && a2enmod headers rewrite setenvif \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2.8 /usr/bin/composer /usr/local/bin/composer
+COPY backend/ /var/www/html/
+
+ARG APP_ENV=production
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && if [ "$APP_ENV" = "production" ]; then \
+        cd /var/www/html && composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader --no-dev; \
+    else \
+        cd /var/www/html && composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader; \
+    fi
+
+RUN sed -ri 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/*.conf /etc/apache2/apache2.conf \
+    && printf '%s\n' \
+        '<Directory /var/www/html/public>' \
+        '    Options -Indexes +FollowSymLinks' \
+        '    AllowOverride None' \
+        '    Require all granted' \
+        '    SetEnvIfNoCase Authorization "^(.*)$" HTTP_AUTHORIZATION=$1' \
+        '    <IfModule mod_rewrite.c>' \
+        '        RewriteEngine On' \
+        '        RewriteCond %{REQUEST_FILENAME} !-d' \
+        '        RewriteCond %{REQUEST_FILENAME} !-f' \
+        '        RewriteRule ^ index.php [L]' \
+        '    </IfModule>' \
+        '</Directory>' \
+        > /etc/apache2/conf-available/laravel.conf \
+    && a2enconf laravel \
+    && php artisan package:discover --ansi \
+    && chown -R www-data:www-data storage bootstrap/cache
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl --fail --silent http://127.0.0.1/api/health || exit 1
+
+CMD ["apache2-foreground"]

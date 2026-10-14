@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+backend/.env
+backend/vendor/
+backend/node_modules/
+backend/storage/
+backend/bootstrap/cache/
+!backend/bootstrap/cache/.gitignore
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+*.log
