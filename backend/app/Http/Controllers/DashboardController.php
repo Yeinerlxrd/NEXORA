@@ -15,18 +15,23 @@ class DashboardController extends Controller
 
         $tasksPending = Task::where('assignee_id', $user->id)
             ->whereIn('status', ['Pendiente', 'En progreso'])
+            ->whereHas('project', fn ($query) => $query->whereNull('archived_at'))
             ->count();
 
         $upcomingTasks = Task::with('project')
             ->where('assignee_id', $user->id)
             ->where('due_at', '>=', now())
+            ->whereHas('project', fn ($query) => $query->whereNull('archived_at'))
             ->orderBy('due_at')
             ->limit(5)
             ->get();
 
         $recentProjects = Project::with('group')
-            ->where('creator_id', $user->id)
-            ->orWhereHas('group.members', fn ($query) => $query->where('users.id', $user->id))
+            ->whereNull('archived_at')
+            ->where(function ($query) use ($user) {
+                $query->where('creator_id', $user->id)
+                    ->orWhereHas('group.members', fn ($memberQuery) => $memberQuery->where('users.id', $user->id));
+            })
             ->orderByDesc('updated_at')
             ->limit(5)
             ->get();
@@ -42,7 +47,7 @@ class DashboardController extends Controller
             'date' => now()->translatedFormat('l, d \d\e F \d\e Y'),
             'summary' => [
                 'pending_tasks' => $tasksPending,
-                'projects' => Project::where('creator_id', $user->id)->count(),
+                'projects' => Project::where('creator_id', $user->id)->whereNull('archived_at')->count(),
                 'groups' => $user->groups()->count(),
             ],
             'upcoming_tasks' => $upcomingTasks,

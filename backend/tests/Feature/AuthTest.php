@@ -40,6 +40,20 @@ class AuthTest extends TestCase
             ->assertJsonPath('email', 'token-qa@nexora.test');
     }
 
+    public function test_logout_revokes_the_authenticated_token(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('logout-test')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/logout')
+            ->assertOk();
+
+        $this->withToken($token)
+            ->getJson('/api/user')
+            ->assertUnauthorized();
+    }
+
     public function test_private_route_requires_authentication(): void
     {
         $response = $this->getJson('/api/dashboard');

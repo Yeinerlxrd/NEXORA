@@ -24,7 +24,8 @@ class TaskController extends Controller
                                 $memberQuery->where('users.id', $user->id);
                             });
                     });
-            });
+            })
+            ->whereHas('project', fn ($projectQuery) => $projectQuery->whereNull('archived_at'));
 
         if ($request->filled('search')) {
             $query->where('title', 'like', '%' . $request->search . '%');
@@ -58,6 +59,7 @@ class TaskController extends Controller
         if (! $this->userCanAccessProject($request->user(), $project)) {
             abort(403, 'No tienes permiso para crear tareas en este proyecto.');
         }
+        abort_if($project->archived_at !== null, 409, 'No se pueden crear tareas en un proyecto archivado.');
 
         if (! empty($data['assignee_id']) && ! $this->userCanAccessProject(User::findOrFail($data['assignee_id']), $project)) {
             abort(403, 'La persona asignada no pertenece al proyecto.');

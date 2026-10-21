@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -10,17 +12,8 @@ class ProjectController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
-
-        $query = Project::query()->with('creator', 'group', 'tasks')
-            ->where(function ($query) use ($user) {
-                $query->where('creator_id', $user->id)
-                    ->orWhere(function ($groupQuery) use ($user) {
-                        $groupQuery->whereNotNull('group_id')->whereHas('group.members', function ($memberQuery) use ($user) {
-                            $memberQuery->where('users.id', $user->id);
-                        });
-                    });
-            });
+        $query = $this->projectsVisibleTo($request->user())
+            ->whereNull('archived_at');
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
@@ -35,6 +28,16 @@ class ProjectController extends Controller
         }
 
         return response()->json($query->orderByDesc('updated_at')->get());
+    }
+
+    public function archived(Request $request)
+    {
+        $projects = $this->projectsVisibleTo($request->user())
+            ->whereNotNull('archived_at')
+            ->orderByDesc('archived_at')
+            ->get();
+
+        return response()->json($projects);
     }
 
     public function store(Request $request)
@@ -72,6 +75,7 @@ class ProjectController extends Controller
     public function update(Request $request, Project $project)
     {
         Gate::authorize('update', $project);
+        abort_if($project->archived_at !== null, 409, 'Restaura el proyecto antes de modificarlo.');
 
         $project->fill($request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
@@ -84,11 +88,62 @@ class ProjectController extends Controller
         return response()->json($project->fresh());
     }
 
+    public function archive(Request $request, Project $project)
+    {
+        Gate::authorize('update', $project);
+
+        $archivedAt = now();
+        $updated = Project::query()
+            ->whereKey($project->getKey())
+            ->whereNull('archived_at')
+            ->update(['archived_at' => $archivedAt, 'updated_at' => $archivedAt]);
+        abort_if($updated !== 1, 409, 'El proyecto ya está archivado.');
+        $project->refresh();
+
+        return response()->json([
+            'message' => 'Proyecto archivado. Sus tareas se conservaron.',
+            'project' => $project,
+        ]);
+    }
+
+    public function restore(Request $request, Project $project)
+    {
+        Gate::authorize('update', $project);
+
+        $updated = Project::query()
+            ->whereKey($project->getKey())
+            ->whereNotNull('archived_at')
+            ->update(['archived_at' => null, 'updated_at' => now()]);
+        abort_if($updated !== 1, 409, 'El proyecto no está archivado.');
+        $project->refresh();
+
+        return response()->json([
+            'message' => 'Proyecto restaurado.',
+            'project' => $project,
+        ]);
+    }
+
     public function destroy(Request $request, Project $project)
     {
         Gate::authorize('delete', $project);
-        $project->delete();
 
-        return response()->json(['message' => 'Proyecto archivado y eliminado.']);
+        return response()->json([
+            'message' => 'La eliminación física de proyectos está deshabilitada. Usa la operación de archivo.',
+        ], 409);
+    }
+
+    private function projectsVisibleTo(User $user): Builder
+    {
+        return Project::query()
+            ->with('creator', 'group', 'tasks')
+            ->where(function (Builder $query) use ($user) {
+                $query->where('creator_id', $user->id)
+                    ->orWhere(function (Builder $groupQuery) use ($user) {
+                        $groupQuery->whereNotNull('group_id')
+                            ->whereHas('group.members', function (Builder $memberQuery) use ($user) {
+                                $memberQuery->where('users.id', $user->id);
+                            });
+                    });
+            });
     }
 }

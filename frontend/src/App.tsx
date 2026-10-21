@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { GroupsPage } from './pages/GroupsPage';
 import { LoginPage } from './pages/LoginPage';
+import { PendingModulePage } from './pages/PendingModulePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { TasksPage } from './pages/TasksPage';
@@ -27,9 +28,16 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="workspace" element={<Navigate to="/projects" replace />} />
         <Route path="groups" element={<GroupsPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="tasks" element={<TasksPage />} />
+        <Route path="daily" element={<PendingModulePage module="Daily" />} />
+        <Route path="social" element={<PendingModulePage module="Social" />} />
+        <Route path="gaming" element={<PendingModulePage module="Gaming" />} />
+        <Route path="discord" element={<PendingModulePage module="Discord" />} />
+        <Route path="notifications" element={<PendingModulePage module="Notificaciones" />} />
+        <Route path="settings" element={<PendingModulePage module="Ajustes" />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

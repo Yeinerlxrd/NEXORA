@@ -1,6 +1,6 @@
 # NEXORA
 
-Laravel 11 API + React/TypeScript/Vite frontend. The local Docker architecture uses MariaDB, Apache/PHP 8.2, and NGINX.
+Laravel 12 API + React/TypeScript/Vite frontend. The local Docker architecture uses MariaDB, Apache/PHP 8.2, and NGINX.
 
 ## Requirements
 
@@ -74,6 +74,8 @@ docker compose exec backend php artisan db:seed --class=DemoSeeder
 ```
 
 The frontend uses real API calls. Task forms obtain project choices from the authenticated API instead of assuming project/user ID `1`.
+
+Projects support reversible archiving through `POST /api/projects/{project}/archive` and `POST /api/projects/{project}/restore`; archived projects are listed with `GET /api/projects/archived` and are excluded from active project/task lists. The existing `DELETE /api/projects/{project}` endpoint is retained for compatibility but now returns `409 Conflict` and never deletes the project or cascaded tasks. This behavior is covered by feature tests.
 
 ## Stop, update, and backups
 

@@ -9,7 +9,7 @@ export type User = {
 export type Task = {
   id: number;
   title: string;
-  description?: string;
+  description?: string | null;
   status: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
   priority: 'Baja' | 'Media' | 'Alta' | 'Urgente';
   due_at?: string | null;
@@ -20,11 +20,13 @@ export type Task = {
 export type Project = {
   id: number;
   name: string;
-  description?: string;
+  description?: string | null;
   status: string;
   priority: string;
   due_at?: string | null;
+  archived_at?: string | null;
   creator?: User;
+  group?: { id: number; name: string } | null;
 };
 
 export type Group = {

@@ -12,6 +12,9 @@ Route::put('/profile/password', [App\Http\Controllers\AuthController::class, 'up
 
 Route::get('/dashboard', [App\Http\Controllers\DashboardController::class, 'index'])->middleware('auth:sanctum');
 
+Route::get('/projects/archived', [App\Http\Controllers\ProjectController::class, 'archived'])->middleware('auth:sanctum');
+Route::post('/projects/{project}/archive', [App\Http\Controllers\ProjectController::class, 'archive'])->middleware('auth:sanctum');
+Route::post('/projects/{project}/restore', [App\Http\Controllers\ProjectController::class, 'restore'])->middleware('auth:sanctum');
 Route::apiResource('/groups', App\Http\Controllers\GroupController::class)->middleware('auth:sanctum');
 Route::apiResource('/projects', App\Http\Controllers\ProjectController::class)->middleware('auth:sanctum');
 Route::apiResource('/tasks', App\Http\Controllers\TaskController::class)->middleware('auth:sanctum');

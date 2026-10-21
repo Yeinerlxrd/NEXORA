@@ -100,4 +100,129 @@ class ProjectTaskAccessTest extends TestCase
             ])
             ->assertCreated();
     }
+
+    public function test_project_archive_and_restore_preserve_tasks_and_hide_archived_data_from_active_lists(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::create([
+            'name' => 'Proyecto reversible',
+            'creator_id' => $owner->id,
+            'status' => 'En progreso',
+            'priority' => 'Media',
+        ]);
+        $task = Task::create([
+            'title' => 'Tarea que debe conservarse',
+            'project_id' => $project->id,
+            'creator_id' => $owner->id,
+            'status' => 'Pendiente',
+            'priority' => 'Media',
+        ]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/archive")
+            ->assertOk()
+            ->assertJsonPath('project.id', $project->id);
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/archive")
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id]);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id, 'project_id' => $project->id]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->getJson('/api/projects')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $project->id]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->getJson('/api/projects/archived')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $project->id]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->getJson('/api/tasks')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $task->id]);
+
+        $outsider = User::factory()->create();
+        $this->actingAs($outsider, 'sanctum')
+            ->getJson('/api/projects/archived')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $project->id]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson('/api/tasks', [
+                'title' => 'Nueva tarea bloqueada',
+                'project_id' => $project->id,
+                'status' => 'Pendiente',
+                'priority' => 'Media',
+            ])
+            ->assertStatus(409);
+
+        $this->assertDatabaseMissing('tasks', ['title' => 'Nueva tarea bloqueada']);
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/restore")
+            ->assertOk();
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/restore")
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'archived_at' => null]);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->getJson('/api/projects')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $project->id]);
+    }
+
+    public function test_project_archive_and_restore_require_owner_permission(): void
+    {
+        $owner = User::factory()->create();
+        $outsider = User::factory()->create();
+        $project = Project::create([
+            'name' => 'Proyecto privado',
+            'creator_id' => $owner->id,
+            'status' => 'Planificación',
+            'priority' => 'Media',
+        ]);
+
+        $this->actingAs($outsider, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/archive")
+            ->assertForbidden();
+
+        $this->actingAs($outsider, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/restore")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id, 'archived_at' => null]);
+    }
+
+    public function test_project_delete_is_rejected_without_deleting_project_or_tasks(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::create([
+            'name' => 'Proyecto protegido',
+            'creator_id' => $owner->id,
+            'status' => 'Planificación',
+            'priority' => 'Media',
+        ]);
+        $task = Task::create([
+            'title' => 'Tarea protegida',
+            'project_id' => $project->id,
+            'creator_id' => $owner->id,
+            'status' => 'Pendiente',
+            'priority' => 'Media',
+        ]);
+
+        $this->actingAs($owner, 'sanctum')
+            ->deleteJson("/api/projects/{$project->id}")
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('projects', ['id' => $project->id]);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id]);
+    }
 }

@@ -1,124 +1,180 @@
-import { ArrowRight, Bell, CalendarDays, FolderKanban, ListTodo, Users } from 'lucide-react';
+import {
+  ArrowRight,
+  Bell,
+  CalendarDays,
+  FolderKanban,
+  ListTodo,
+  Users,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { StatCard } from '../components/StatCard';
 import { getDashboard } from '../lib/api';
 import type { DashboardData } from '../types';
-import { StatCard } from '../components/StatCard';
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  async function loadDashboard() {
+    setError('');
+    setLoading(true);
+    try {
+      setData(await getDashboard());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    getDashboard()
-      .then(setData)
-      .catch(err => setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard.'));
+    void loadDashboard();
   }, []);
 
-  if (error) return <div className="alert" role="alert">{error}</div>;
-  if (!data) return <div className="card empty">Cargando Command Center…</div>;
+  if (loading) {
+    return <div className="view dashboard-view"><div className="panel loading-state" role="status">Cargando tu resumen…</div></div>;
+  }
+
+  if (error || !data) {
+    return (
+      <div className="view dashboard-view">
+        <section className="panel error-state" role="alert">
+          <p>{error || 'No se pudo cargar el dashboard.'}</p>
+          <button className="secondary-button" onClick={() => void loadDashboard()}>Reintentar</button>
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="topbar">
+    <div className="view dashboard-view">
+      <section className="welcome">
         <div>
-          <div className="label">Dashboard</div>
-          <h1 style={{ marginTop: 8 }}>{data.hello}</h1>
+          <span className="date-label">{data.date}</span>
+          <h1>{data.hello}<span className="welcome-spark"> ✦</span></h1>
+          <p>Tu actividad y tus espacios de trabajo, en un solo lugar.</p>
         </div>
-        <div className="user-pill">
-          <CalendarDays size={18} color="#22d3ee" />
-          <span>{data.date}</span>
+        <Link className="focus-button" to="/tasks"><ListTodo size={16} /> Ver mis tareas</Link>
+      </section>
+
+      <section className="stats-strip" aria-label="Resumen">
+        <StatCard label="Tareas pendientes" value={data.summary.pending_tasks} accent={<ListTodo size={18} />} />
+        <StatCard label="Proyectos" value={data.summary.projects} accent={<FolderKanban size={18} />} />
+        <StatCard label="Grupos" value={data.summary.groups} accent={<Users size={18} />} />
+        <div className="stats-note">
+          <CalendarDays size={17} aria-hidden="true" />
+          <span>Próximas entregas</span>
+          <b>{data.upcoming_tasks.length}</b>
         </div>
+      </section>
+
+      <div className="dashboard-grid">
+        <section className="panel">
+          <div className="section-title">
+            <div><span>PRÓXIMAS</span><h2>Tareas por atender</h2></div>
+            <Link to="/tasks">Ver tareas <ArrowRight size={14} /></Link>
+          </div>
+          {data.upcoming_tasks.length > 0 ? (
+            <div className="dashboard-list">
+              {data.upcoming_tasks.map(task => (
+                <div className="dashboard-row" key={task.id}>
+                  <span className="task-marker" aria-hidden="true" />
+                  <div className="dashboard-row-copy">
+                    <b>{task.title}</b>
+                    <small>{task.project?.name ?? 'Proyecto'}{task.due_at ? ` · ${new Date(task.due_at).toLocaleDateString()}` : ''}</small>
+                  </div>
+                  <span className={`priority-badge priority-${task.priority.toLowerCase()}`}>{task.priority}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-inline">No tienes tareas próximas asignadas.</p>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="section-title">
+            <div><span>ACTIVIDAD</span><h2>Notificaciones recientes</h2></div>
+            <Bell size={16} aria-hidden="true" />
+          </div>
+          {data.notifications.length > 0 ? (
+            <div className="dashboard-list">
+              {data.notifications.map(note => (
+                <div className="dashboard-row notification-row" key={note.id}>
+                  <span className="notification-marker"><Bell size={13} aria-hidden="true" /></span>
+                  <div className="dashboard-row-copy">
+                    <b>{note.title}</b>
+                    <small>{note.message}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-inline">No hay notificaciones recientes.</p>
+          )}
+          <Link className="panel-footer-link" to="/notifications">Centro de notificaciones <ArrowRight size={14} /></Link>
+        </section>
+
+        <section className="panel">
+          <div className="section-title">
+            <div><span>WORKSPACE</span><h2>Proyectos recientes</h2></div>
+            <Link to="/projects">Todos <ArrowRight size={14} /></Link>
+          </div>
+          {data.recent_projects.length > 0 ? (
+            <div className="dashboard-list">
+              {data.recent_projects.map(project => (
+                <div className="dashboard-row project-row" key={project.id}>
+                  <span className="project-mark"><FolderKanban size={15} aria-hidden="true" /></span>
+                  <div className="dashboard-row-copy">
+                    <b>{project.name}</b>
+                    <small>{project.group?.name ?? project.status}</small>
+                  </div>
+                  <span className={`priority-badge priority-${project.priority.toLowerCase()}`}>{project.priority}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-inline">Aún no tienes proyectos. <Link to="/projects">Crear proyecto</Link></div>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="section-title">
+            <div><span>COMUNIDAD</span><h2>Tus grupos</h2></div>
+            <Link to="/groups">Ver grupos <ArrowRight size={14} /></Link>
+          </div>
+          {data.recent_groups.length > 0 ? (
+            <div className="dashboard-list">
+              {data.recent_groups.map(group => (
+                <div className="dashboard-row" key={group.id}>
+                  <span className="group-mark"><Users size={15} aria-hidden="true" /></span>
+                  <div className="dashboard-row-copy">
+                    <b>{group.name}</b>
+                    <small>{group.members_count} miembros</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-inline">Aún no perteneces a grupos. <Link to="/groups">Crear grupo</Link></div>
+          )}
+        </section>
       </div>
 
-      <div className="grid grid-3">
-        <StatCard label="Tareas pendientes" value={data.summary.pending_tasks} accent={<ListTodo size={26} color="#22d3ee" />} />
-        <StatCard label="Proyectos" value={data.summary.projects} accent={<FolderKanban size={26} color="#8b5cf6" />} />
-        <StatCard label="Grupos" value={data.summary.groups} accent={<Users size={26} color="#22d3ee" />} />
-      </div>
-
-      <div className="grid grid-2" style={{ marginTop: 18 }}>
-        <div className="card">
-          <div className="section-header">
-            <h2>Tareas próximas a vencer</h2>
-          </div>
-          <div className="list">
-            {data.upcoming_tasks.map(task => (
-              <div key={task.id} className="list-item">
-                <div>
-                  <strong>{task.title}</strong>
-                  <div style={{ color: '#9aa6bd', marginTop: 4 }}>{task.project?.name}</div>
-                </div>
-                <span className="badge">{task.priority}</span>
-              </div>
-            ))}
-          </div>
+      <section className="quick-access">
+        <div className="section-title">
+          <div><span>ACCESOS RÁPIDOS</span><h2>Continúa desde aquí</h2></div>
         </div>
-
-        <div className="card">
-          <div className="section-header">
-            <h2>Notificaciones</h2>
-            <Bell size={18} color="#22d3ee" />
-          </div>
-          <div className="list">
-            {data.notifications.map(note => (
-              <div key={note.id} className="list-item">
-                <div>
-                  <strong>{note.title}</strong>
-                  <div style={{ color: '#9aa6bd', marginTop: 4 }}>{note.message}</div>
-                </div>
-                <ArrowRight size={18} color="#9aa6bd" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-2" style={{ marginTop: 18 }}>
-        <div className="card">
-          <div className="section-header">
-            <h2>Proyectos recientes</h2>
-          </div>
-          <div className="list">
-            {data.recent_projects.map(project => (
-              <div key={project.id} className="list-item">
-                <div>
-                  <strong>{project.name}</strong>
-                  <div style={{ color: '#9aa6bd', marginTop: 4 }}>{project.status}</div>
-                </div>
-                <span className="badge">{project.priority}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="section-header">
-            <h2>Grupos activos</h2>
-          </div>
-          <div className="list">
-            {data.recent_groups.map(group => (
-              <div key={group.id} className="list-item">
-                <div>
-                  <strong>{group.name}</strong>
-                  <div style={{ color: '#9aa6bd', marginTop: 4 }}>{group.members_count} miembros</div>
-                </div>
-                <span className="badge">Activo</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 18 }}>
-        <div className="section-header">
-          <h2>Accesos rápidos</h2>
-        </div>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div className="quick-link-list">
           {data.quick_links.map(link => (
-            <a key={link.label} href={link.href} className="button secondary">{link.label}</a>
+            <Link key={link.label} to={link.href}>
+              <span>{link.label}</span><ArrowRight size={15} aria-hidden="true" />
+            </Link>
           ))}
         </div>
-      </div>
-    </>
+      </section>
+    </div>
   );
 }

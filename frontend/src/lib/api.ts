@@ -2,6 +2,13 @@ import type { DashboardData, Group, Project, Task, User } from '../types';
 
 const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
+class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 function storage<T>(key: string, value?: T): T | null {
   if (typeof window === 'undefined') {
     return null;
@@ -32,7 +39,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const message = data?.message ?? data?.error ?? 'La operación falló.';
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return data as T;
@@ -81,6 +88,22 @@ export async function getProjects(): Promise<Project[]> {
   return request<Project[]>('/projects');
 }
 
+export async function getArchivedProjects(): Promise<Project[]> {
+  return request<Project[]>('/projects/archived');
+}
+
+export async function archiveProject(projectId: number): Promise<{ message: string; project: Project }> {
+  return request<{ message: string; project: Project }>(`/projects/${projectId}/archive`, {
+    method: 'POST',
+  });
+}
+
+export async function restoreProject(projectId: number): Promise<{ message: string; project: Project }> {
+  return request<{ message: string; project: Project }>(`/projects/${projectId}/restore`, {
+    method: 'POST',
+  });
+}
+
 export async function createProject(form: { name: string; description?: string; status: string; priority: string; group_id?: number | null; due_at?: string | null }) {
   return request<Project>('/projects', {
     method: 'POST',
@@ -103,7 +126,14 @@ export function getCurrentUser(): User | null {
   return storage<User>('nexora-user');
 }
 
-export function logout() {
+export async function logout(): Promise<void> {
+  try {
+    await request<{ message: string }>('/logout', { method: 'POST' });
+  } catch (err) {
+    if (!(err instanceof ApiError && err.status === 401)) {
+      throw err;
+    }
+  }
   window.sessionStorage.removeItem('nexora-user');
   window.sessionStorage.removeItem('nexora-token');
 }
