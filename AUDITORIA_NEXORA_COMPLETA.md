@@ -116,7 +116,9 @@ Se inspeccionaron las páginas con Chromium headless a 1440 × 1000 y 390 × 844
   Tareas, Login y Registro;
 - navegación móvil a 9 px con etiquetas ocultas, sin recortes;
 - botón “Buscar” móvil estabilizado en 38 px de alto;
-- estados vacíos correctos y sin mensajes prematuros.
+- estados vacíos correctos y sin mensajes prematuros;
+- auditoría axe-core 4.10.2 en 12 vistas a 1440 px: 0 violaciones tras corregir
+  contraste de etiquetas y landmarks de autenticación.
 
 ## 7. Pruebas y build
 

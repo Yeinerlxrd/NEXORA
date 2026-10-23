@@ -34,7 +34,7 @@ class GroupInvitationController extends Controller
                 throw new ConflictHttpException('La persona ya pertenece al grupo.');
             }
 
-            if (!Friendship::between($inviter->id, $invitee->id)) {
+            if (! Friendship::between($inviter->id, $invitee->id)) {
                 abort(403, 'Solo puedes invitar a una persona que sea tu amiga.');
             }
 

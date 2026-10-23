@@ -669,7 +669,7 @@ kbd { font-size: 9px; }
 .label { font-size: 10px; }
 .badge { font-size: 10px; }
 .empty { font-size: 12px; }
-.stat-card .label { font-size: 10px; }
+.stat-card .label { color: #9a9aae; font-size: 10px; }
 .stat-card .value { font-size: 21px; }
 .stats-note { font-size: 11px; }
 .dashboard-row-copy b { font-size: 11px; }

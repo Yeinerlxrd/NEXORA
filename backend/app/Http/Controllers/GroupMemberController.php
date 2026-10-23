@@ -76,7 +76,7 @@ class GroupMemberController extends Controller
                     ->orderByRaw("CASE WHEN group_members.role = 'Owner' THEN 0 ELSE 1 END")
                     ->first();
 
-                if (!$successor) {
+                if (! $successor) {
                     throw new ConflictHttpException('El último propietario no puede abandonar el grupo.');
                 }
 

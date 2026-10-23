@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Friendship;
 use App\Models\Group;
 use App\Models\GroupInvitation;
-use App\Models\Friendship;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
