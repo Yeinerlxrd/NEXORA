@@ -9,11 +9,11 @@ type StatCardProps = {
 export function StatCard({ label, value, accent }: StatCardProps) {
   return (
     <div className="card stat-card">
-      <div>
-        <div className="label">{label}</div>
-        <div className="value">{value}</div>
-      </div>
-      {accent}
+      <dl className="stat-card-copy">
+        <dt className="label">{label}</dt>
+        <dd className="value">{value}</dd>
+      </dl>
+      {accent && <span className="stat-card-icon">{accent}</span>}
     </div>
   );
 }

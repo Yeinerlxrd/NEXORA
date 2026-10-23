@@ -3,9 +3,13 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "allowScripts": {
+    "esbuild@0.25.12": true
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "for file in tests/*.test.ts; do node --experimental-strip-types \"$file\" || exit 1; done",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

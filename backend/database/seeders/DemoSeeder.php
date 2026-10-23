@@ -102,6 +102,7 @@ class DemoSeeder extends Seeder
 
         $quest = Quest::firstOrCreate([
             'title' => 'Reto de productividad semanal',
+            'creator_id' => $demoUser->id,
         ], [
             'description' => 'Completa una iniciativa de trabajo en equipo y registra tus avances.',
             'category' => 'Productividad',
@@ -112,7 +113,8 @@ class DemoSeeder extends Seeder
             'status' => 'active',
         ]);
 
-        $quest->participants()->syncWithoutDetaching([$demoUser->id => ['progress' => 60, 'completed' => false]]);
+        $quest->participants()->syncWithoutDetaching([$secondUser->id => ['progress' => 60, 'completed' => false]]);
+        $quest->participants()->detach($demoUser->id);
 
         Badges::firstOrCreate([
             'name' => 'Primera colaboración',

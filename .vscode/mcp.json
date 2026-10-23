@@ -1,5 +1,5 @@
-
 {
+  "inputs": [],
   "servers": {
     "figma": {
       "type": "http",

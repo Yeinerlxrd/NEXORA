@@ -14,10 +14,17 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => ['required', 'max:255', 'email', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
+            'name.required' => 'El nombre es obligatorio.',
+            'name.max' => 'El nombre no puede superar los 100 caracteres.',
+            'email.required' => 'El correo electrónico es obligatorio.',
+            'email.email' => 'El formato del correo electrónico no es válido.',
+            'email.max' => 'El correo electrónico no puede superar los 255 caracteres.',
             'email.unique' => 'Este correo ya está registrado.',
+            'password.required' => 'La contraseña es obligatoria.',
+            'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'La confirmación de la contraseña no coincide.',
         ]);
 
@@ -31,6 +38,8 @@ class AuthController extends Controller
             return [$user, $user->createToken('nexora-token')->plainTextToken];
         });
 
+        $user->refresh();
+
         return response()->json([
             'user' => $user,
             'token' => $token,
@@ -40,8 +49,10 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $data = $request->validate([
-            'email' => ['required', 'email'],
+            'email' => ['required', 'max:255', 'email'],
             'password' => ['required', 'string'],
+        ], [
+            'email.max' => 'El correo electrónico no puede superar los 255 caracteres.',
         ]);
 
         $user = User::where('email', $data['email'])->first();
@@ -61,6 +72,7 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->user()->tokens()->delete();
+        app('auth')->forgetGuards();
 
         return response()->json(['message' => 'Sesión cerrada correctamente.']);
     }
@@ -92,19 +104,28 @@ class AuthController extends Controller
             'current_password' => ['required', 'string'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
+            'current_password.required' => 'La contraseña actual es obligatoria.',
+            'password.required' => 'La nueva contraseña es obligatoria.',
+            'password.min' => 'La nueva contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'La confirmación de la nueva contraseña no coincide.',
         ]);
 
         $user = $request->user();
 
-        if (! Hash::check($request->current_password, $user->password)) {
-            throw ValidationException::withMessages([
-                'current_password' => ['La contraseña actual es incorrecta.'],
-            ]);
-        }
+        DB::transaction(function () use ($user, $request): void {
+            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
 
-        $user->password = Hash::make($request->password);
-        $user->save();
+            if (! Hash::check($request->current_password, $lockedUser->password)) {
+                throw ValidationException::withMessages([
+                    'current_password' => ['La contraseña actual es incorrecta.'],
+                ]);
+            }
+
+            $lockedUser->password = Hash::make($request->password);
+            $lockedUser->save();
+            $lockedUser->tokens()->delete();
+        });
+        app('auth')->forgetGuards();
 
         return response()->json(['message' => 'Contraseña actualizada correctamente.']);
     }

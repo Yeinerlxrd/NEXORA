@@ -8,6 +8,11 @@ class Quest extends Model
 {
     protected $fillable = ['title', 'description', 'category', 'difficulty', 'creator_id', 'due_at', 'reward_xp', 'status'];
 
+    protected $casts = [
+        'due_at' => 'date:Y-m-d',
+        'reward_xp' => 'integer',
+    ];
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'creator_id');

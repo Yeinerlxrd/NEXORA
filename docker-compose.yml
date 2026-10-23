@@ -41,6 +41,7 @@ services:
       SESSION_DOMAIN: ${SESSION_DOMAIN:-}
       SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
       SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-localhost:8080}
+      TRUSTED_PROXIES: '${TRUSTED_PROXIES:-*}'
     depends_on:
       mysql:
         condition: service_healthy
@@ -58,16 +59,17 @@ services:
       dockerfile: Dockerfile.backend
       args:
         APP_ENV: local
-    env_file:
-      - .env
     environment:
       APP_ENV: testing
       APP_DEBUG: "false"
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       DB_CONNECTION: sqlite
       DB_DATABASE: ":memory:"
+      CACHE_STORE: array
+      SESSION_DRIVER: array
     command: ["./vendor/bin/phpunit", "--no-coverage"]
     networks:
-      - data
+      - test
 
   frontend:
     build:
@@ -87,6 +89,8 @@ services:
 networks:
   edge:
   data:
+    internal: true
+  test:
     internal: true
 
 volumes:

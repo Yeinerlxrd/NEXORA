@@ -14,9 +14,10 @@ import {
   X,
   ListTodo,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { getCurrentUser, logout } from '../lib/api';
+import { getCurrentUser, getUnreadNotificationCount, logout } from '../lib/api';
+import { UserAvatar } from './UserAvatar';
 
 const navigation = [
   { to: '/', label: 'Core', icon: Home, section: 'Espacio', end: true },
@@ -53,7 +54,27 @@ export function Layout() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const commandDialogRef = useRef<HTMLElement>(null);
   const title = pageTitles[location.pathname] ?? 'Core';
+
+  useEffect(() => {
+    let active = true;
+    const refreshUnreadCount = () => {
+      void getUnreadNotificationCount()
+        .then(count => {
+          if (active) setUnreadNotifications(count);
+        })
+        .catch(() => {});
+    };
+
+    refreshUnreadCount();
+    window.addEventListener('nexora:notifications-changed', refreshUnreadCount);
+    return () => {
+      active = false;
+      window.removeEventListener('nexora:notifications-changed', refreshUnreadCount);
+    };
+  }, [location.pathname]);
 
   const commands = useMemo(
     () => navigation.filter(item => item.label.toLowerCase().includes(query.toLowerCase())),
@@ -74,6 +95,48 @@ export function Layout() {
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
   }, []);
+
+  useEffect(() => {
+    if (!commandOpen) return;
+
+    const dialog = commandDialogRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    dialog?.querySelector<HTMLInputElement>('#command-search')?.focus();
+
+    function trapFocus(event: KeyboardEvent) {
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      )).filter(element => element.offsetParent !== null);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener('keydown', trapFocus);
+    return () => {
+      document.removeEventListener('keydown', trapFocus);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [commandOpen]);
 
   async function handleLogout() {
     setLogoutError('');
@@ -119,13 +182,18 @@ export function Layout() {
             <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
               <Icon size={17} aria-hidden="true" />
               <span>{label}</span>
+              {to === '/notifications' && unreadNotifications > 0 && (
+                <span className="sidebar-count" aria-hidden="true">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
 
         <div className="sidebar-bottom">
           <div className="profile-row">
-            <span className="avatar">{user?.name?.slice(0, 2).toUpperCase() ?? 'NX'}</span>
+            <UserAvatar name={user?.name ?? 'NEXORA'} avatarUrl={user?.avatar_url} />
             <span className="profile-copy">
               <b>{user?.name ?? 'Cuenta NEXORA'}</b>
               <small>{user?.email ?? ''}</small>
@@ -164,12 +232,34 @@ export function Layout() {
                 </div>
               )}
             </div>
-            <Link className="icon-button" to="/notifications" aria-label="Notificaciones">
+            <Link
+              className="icon-button notification-trigger"
+              to="/notifications"
+              aria-label={`Notificaciones${unreadNotifications > 0 ? ` (${unreadNotifications} pendientes)` : ''}`}
+            >
               <Bell size={16} aria-hidden="true" />
+              {unreadNotifications > 0 && (
+                <span className="notification-badge" aria-hidden="true">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
             </Link>
-            <span className="avatar top-avatar" aria-label={user?.name ?? 'Usuario'}>
-              {user?.name?.slice(0, 2).toUpperCase() ?? 'NX'}
-            </span>
+            <button
+              className="icon-button mobile-logout"
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              aria-label={loggingOut ? 'Cerrando sesión' : 'Cerrar sesión'}
+              title="Cerrar sesión"
+            >
+              <LogOut size={16} aria-hidden="true" />
+            </button>
+            <UserAvatar
+              className="top-avatar"
+              name={user?.name ?? 'NEXORA'}
+              avatarUrl={user?.avatar_url}
+              label={user?.name ?? 'Usuario'}
+            />
           </div>
         </header>
 
@@ -182,10 +272,12 @@ export function Layout() {
       {commandOpen && (
         <div className="command-backdrop" onMouseDown={() => setCommandOpen(false)}>
           <section
+            ref={commandDialogRef}
             className="command-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="command-title"
+            tabIndex={-1}
             onMouseDown={event => event.stopPropagation()}
           >
             <div className="command-input">
@@ -193,7 +285,6 @@ export function Layout() {
               <label className="sr-only" id="command-title" htmlFor="command-search">Ir a una sección de NEXORA</label>
               <input
                 id="command-search"
-                autoFocus
                 value={query}
                 onChange={event => setQuery(event.target.value)}
                 placeholder="Buscar una sección..."

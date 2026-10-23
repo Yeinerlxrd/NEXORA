@@ -1,19 +1,24 @@
-import { Archive, ArchiveRestore, FolderKanban, Plus } from 'lucide-react';
+import { Archive, ArchiveRestore, FolderKanban, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   archiveProject,
   createProject,
+  getCurrentUser,
   getArchivedProjects,
+  getGroups,
   getProjects,
   restoreProject,
+  updateProject,
 } from '../lib/api';
-import type { Project } from '../types';
+import { parseCalendarDate } from '../lib/date';
+import type { Group, Project } from '../types';
 
 type ProjectForm = {
   name: string;
   description: string;
   status: string;
   priority: string;
+  group_id: string;
   due_at: string;
 };
 
@@ -22,14 +27,18 @@ const emptyForm: ProjectForm = {
   description: '',
   status: 'Planificación',
   priority: 'Media',
+  group_id: '',
   due_at: '',
 };
 
 export function ProjectsPage() {
+  const currentUser = getCurrentUser();
   const [projects, setProjects] = useState<Project[]>([]);
   const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState<ProjectForm>(emptyForm);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -56,7 +65,32 @@ export function ProjectsPage() {
     refreshProjects()
       .catch(err => setError(err instanceof Error ? err.message : 'No se pudieron cargar los proyectos.'))
       .finally(() => setLoading(false));
+    getGroups()
+      .then(setGroups)
+      .catch(err => setError(err instanceof Error
+        ? `Los proyectos están disponibles, pero no se pudieron cargar los grupos: ${err.message}`
+        : 'No se pudieron cargar los grupos para vincular proyectos.'));
   }, []);
+
+  function startEditing(project: Project) {
+    setEditingProject(project);
+    setForm({
+      name: project.name,
+      description: project.description ?? '',
+      status: project.status,
+      priority: project.priority,
+      group_id: project.group_id ? String(project.group_id) : '',
+      due_at: project.due_at ? project.due_at.slice(0, 10) : '',
+    });
+    setError('');
+    setNotice('');
+    document.getElementById('create-project')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function cancelEditing() {
+    setEditingProject(null);
+    setForm(emptyForm);
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -66,9 +100,20 @@ export function ProjectsPage() {
     let created = false;
 
     try {
-      await createProject({ ...form, due_at: form.due_at || null });
+      const payload = {
+        ...form,
+        group_id: form.group_id ? Number(form.group_id) : null,
+        due_at: form.due_at || null,
+      };
+      if (editingProject) {
+        await updateProject(editingProject.id, payload);
+        setNotice('El proyecto se actualizó correctamente.');
+      } else {
+        await createProject(payload);
+        setNotice('El proyecto se creó correctamente.');
+      }
       setForm(emptyForm);
-      setNotice('El proyecto se creó correctamente.');
+      setEditingProject(null);
       created = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el proyecto.');
@@ -132,7 +177,7 @@ export function ProjectsPage() {
 
       <section className="panel project-create-panel" id="create-project">
         <div className="section-title">
-          <div><span>WORKSPACE</span><h2>Crear proyecto</h2></div>
+          <div><span>WORKSPACE</span><h2>{editingProject ? 'Editar proyecto' : 'Crear proyecto'}</h2></div>
           <FolderKanban size={17} aria-hidden="true" />
         </div>
         <form className="project-form" onSubmit={handleSubmit}>
@@ -143,6 +188,13 @@ export function ProjectsPage() {
           <div className="form-field">
             <label htmlFor="project-description">Descripción</label>
             <textarea id="project-description" value={form.description} onChange={event => setForm({ ...form, description: event.target.value })} maxLength={1000} rows={2} />
+          </div>
+          <div className="form-field">
+            <label htmlFor="project-group">Grupo (opcional)</label>
+            <select id="project-group" value={form.group_id} onChange={event => setForm({ ...form, group_id: event.target.value })}>
+              <option value="">Proyecto personal</option>
+              {groups.map((group: Group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+            </select>
           </div>
           <div className="project-form-row">
             <div className="form-field">
@@ -162,9 +214,12 @@ export function ProjectsPage() {
               <input id="project-date" type="date" value={form.due_at} onChange={event => setForm({ ...form, due_at: event.target.value })} />
             </div>
           </div>
-          <button type="submit" className="focus-button" disabled={saving}>
-            <Plus size={15} /> {saving ? 'Guardando…' : 'Crear proyecto'}
-          </button>
+          <div className="project-form-actions">
+            <button type="submit" className="focus-button" disabled={saving}>
+              {editingProject ? <Pencil size={15} /> : <Plus size={15} />} {saving ? 'Guardando…' : editingProject ? 'Guardar cambios' : 'Crear proyecto'}
+            </button>
+            {editingProject && <button type="button" className="secondary-button" onClick={cancelEditing}><X size={15} /> Cancelar</button>}
+          </div>
         </form>
       </section>
 
@@ -186,17 +241,24 @@ export function ProjectsPage() {
                 <span className="project-mark"><FolderKanban size={16} aria-hidden="true" /></span>
                 <div className="dashboard-row-copy">
                   <b>{project.name}</b>
-                  <small>{project.group?.name ?? project.status}{project.due_at ? ` · Vence ${new Date(project.due_at).toLocaleDateString()}` : ''}</small>
+                  <small>{project.group?.name ?? project.status}{project.due_at ? ` · Vence ${parseCalendarDate(project.due_at)?.toLocaleDateString('es') ?? 'Fecha no válida'}` : ''}</small>
                 </div>
                 <span className={`priority-badge priority-${project.priority.toLowerCase()}`}>{project.priority}</span>
-                {showArchived ? (
-                  <button className="secondary-button project-action" onClick={() => void handleRestore(project)} disabled={changingProject === project.id}>
-                    <ArchiveRestore size={15} /> {changingProject === project.id ? 'Restaurando…' : 'Restaurar'}
+                {project.creator_public_id === currentUser?.public_id && !showArchived && (
+                  <button className="icon-button" type="button" aria-label={`Editar ${project.name}`} onClick={() => startEditing(project)}>
+                    <Pencil size={15} aria-hidden="true" />
                   </button>
-                ) : (
-                  <button className="secondary-button project-action" onClick={() => void handleArchive(project)} disabled={changingProject === project.id}>
-                    <Archive size={15} /> {changingProject === project.id ? 'Archivando…' : 'Archivar'}
-                  </button>
+                )}
+                {project.creator_public_id === currentUser?.public_id && (
+                  showArchived ? (
+                    <button className="secondary-button project-action" onClick={() => void handleRestore(project)} disabled={changingProject === project.id}>
+                      <ArchiveRestore size={15} /> {changingProject === project.id ? 'Restaurando…' : 'Restaurar'}
+                    </button>
+                  ) : (
+                    <button className="secondary-button project-action" onClick={() => void handleArchive(project)} disabled={changingProject === project.id}>
+                      <Archive size={15} /> {changingProject === project.id ? 'Archivando…' : 'Archivar'}
+                    </button>
+                  )
                 )}
               </article>
             ))}

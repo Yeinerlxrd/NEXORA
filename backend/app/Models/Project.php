@@ -18,7 +18,7 @@ class Project extends Model
     ];
 
     protected $casts = [
-        'due_at' => 'datetime',
+        'due_at' => 'date:Y-m-d',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'archived_at' => 'datetime',

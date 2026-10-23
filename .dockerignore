@@ -1,5 +1,7 @@
 .git
 .gitignore
+.agents
+.vscode
 node_modules
 backend/vendor
 backend/storage

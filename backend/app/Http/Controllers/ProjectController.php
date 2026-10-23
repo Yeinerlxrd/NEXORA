@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\User;
+use App\Http\Resources\ProjectResource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -12,6 +13,12 @@ class ProjectController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'search' => ['sometimes', 'string', 'max:120'],
+            'status' => ['sometimes', 'in:Planificación,En progreso,En revisión,Completado'],
+            'priority' => ['sometimes', 'in:Baja,Media,Alta,Urgente'],
+        ]);
+
         $query = $this->projectsVisibleTo($request->user())
             ->whereNull('archived_at');
 
@@ -27,7 +34,7 @@ class ProjectController extends Controller
             $query->where('priority', $request->priority);
         }
 
-        return response()->json($query->orderByDesc('updated_at')->get());
+        return response()->json(ProjectResource::collection($query->orderByDesc('updated_at')->get())->resolve($request));
     }
 
     public function archived(Request $request)
@@ -37,7 +44,7 @@ class ProjectController extends Controller
             ->orderByDesc('archived_at')
             ->get();
 
-        return response()->json($projects);
+        return response()->json(ProjectResource::collection($projects)->resolve($request));
     }
 
     public function store(Request $request)
@@ -45,7 +52,7 @@ class ProjectController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:1000'],
-            'status' => ['required', 'in:Planificación,En progreso,En revisión,Completado,Archivado'],
+            'status' => ['required', 'in:Planificación,En progreso,En revisión,Completado'],
             'priority' => ['required', 'in:Baja,Media,Alta,Urgente'],
             'group_id' => ['nullable', 'integer', 'exists:groups,id'],
             'due_at' => ['nullable', 'date'],
@@ -62,14 +69,23 @@ class ProjectController extends Controller
 
         $project = Project::create($data);
 
-        return response()->json($project->fresh(), 201);
+        return response()->json(ProjectResource::make($project->fresh(['creator', 'group']))->resolve($request), 201);
     }
 
     public function show(Request $request, Project $project)
     {
         Gate::authorize('view', $project);
 
-        return response()->json($project->load('creator', 'group', 'tasks'));
+        return response()->json(ProjectResource::make($project->load([
+            'creator:id,public_id,name,avatar_url,bio',
+            'group:id,name',
+            'tasks' => fn ($query) => $query->select([
+                'id', 'project_id', 'creator_id', 'assignee_id', 'title', 'description',
+                'status', 'priority', 'due_at', 'created_at', 'updated_at',
+            ]),
+            'tasks.creator:id,public_id,name,avatar_url,bio',
+            'tasks.assignee:id,public_id,name,avatar_url,bio',
+        ]))->resolve($request));
     }
 
     public function update(Request $request, Project $project)
@@ -77,15 +93,25 @@ class ProjectController extends Controller
         Gate::authorize('update', $project);
         abort_if($project->archived_at !== null, 409, 'Restaura el proyecto antes de modificarlo.');
 
-        $project->fill($request->validate([
+        $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:120'],
             'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
-            'status' => ['sometimes', 'in:Planificación,En progreso,En revisión,Completado,Archivado'],
+            'status' => ['sometimes', 'in:Planificación,En progreso,En revisión,Completado'],
             'priority' => ['sometimes', 'in:Baja,Media,Alta,Urgente'],
+            'group_id' => ['sometimes', 'nullable', 'integer', 'exists:groups,id'],
             'due_at' => ['sometimes', 'nullable', 'date'],
-        ]))->save();
+        ]);
 
-        return response()->json($project->fresh());
+        if (array_key_exists('group_id', $data)) {
+            $groupId = $data['group_id'];
+            if ($groupId !== null && ! $request->user()->groups()->whereKey($groupId)->exists()) {
+                abort(403, 'No tienes permisos para vincular el proyecto a este grupo.');
+            }
+        }
+
+        $project->fill($data)->save();
+
+        return response()->json(ProjectResource::make($project->fresh(['creator', 'group']))->resolve($request));
     }
 
     public function archive(Request $request, Project $project)
@@ -102,7 +128,7 @@ class ProjectController extends Controller
 
         return response()->json([
             'message' => 'Proyecto archivado. Sus tareas se conservaron.',
-            'project' => $project,
+            'project' => ProjectResource::make($project->load(['creator', 'group']))->resolve($request),
         ]);
     }
 
@@ -119,7 +145,7 @@ class ProjectController extends Controller
 
         return response()->json([
             'message' => 'Proyecto restaurado.',
-            'project' => $project,
+            'project' => ProjectResource::make($project->load(['creator', 'group']))->resolve($request),
         ]);
     }
 
@@ -135,7 +161,7 @@ class ProjectController extends Controller
     private function projectsVisibleTo(User $user): Builder
     {
         return Project::query()
-            ->with('creator', 'group', 'tasks')
+            ->with(['group:id,name', 'creator:id,public_id,name,avatar_url,bio'])
             ->where(function (Builder $query) use ($user) {
                 $query->where('creator_id', $user->id)
                     ->orWhere(function (Builder $groupQuery) use ($user) {

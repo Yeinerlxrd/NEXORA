@@ -1,34 +1,14 @@
 import { ArrowUpRight, CircleDashed } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const moduleDetails: Record<string, { description: string; status: string }> = {
-  Daily: {
-    description: 'La agenda personal, los hábitos y los objetivos todavía no tienen API ni persistencia propia.',
-    status: 'Backend pendiente',
-  },
-  Social: {
-    description: 'Amistades, comunidades y presencia requieren modelos, permisos y operaciones de API antes de habilitarse.',
-    status: 'Backend pendiente',
-  },
-  Gaming: {
-    description: 'La biblioteca y las sesiones de juego del diseño aún no cuentan con datos ni operaciones reales.',
-    status: 'Backend pendiente',
-  },
+const moduleDetails = {
   Discord: {
     description: 'La vinculación OAuth y las notificaciones de Discord no están implementadas. No se muestra una conexión simulada.',
     status: 'Integración pendiente',
   },
-  Notificaciones: {
-    description: 'El dashboard puede mostrar notificaciones existentes; filtros, preferencias y acciones todavía no tienen API.',
-    status: 'Interfaz pendiente',
-  },
-  Ajustes: {
-    description: 'El perfil tiene operaciones disponibles en la API, pero la pantalla de ajustes todavía no está implementada.',
-    status: 'Interfaz pendiente',
-  },
 };
 
-export function PendingModulePage({ module }: { module: string }) {
+export function PendingModulePage({ module }: { module: keyof typeof moduleDetails }) {
   const details = moduleDetails[module];
 
   return (

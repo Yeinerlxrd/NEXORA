@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -13,15 +15,27 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'public_id',
         'password',
         'avatar_url',
         'bio',
+    ];
+
+    protected $casts = [
+        'xp_total' => 'integer',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (User $user): void {
+            $user->public_id ??= (string) Str::uuid();
+        });
+    }
 
     public function groups()
     {
@@ -38,8 +52,18 @@ class User extends Authenticatable
         return $this->hasMany(Task::class, 'assignee_id');
     }
 
-    public function notifications()
+    public function notifications(): HasMany
     {
         return $this->hasMany(Notification::class);
+    }
+
+    public function sentFriendRequests(): HasMany
+    {
+        return $this->hasMany(FriendRequest::class, 'sender_id');
+    }
+
+    public function receivedFriendRequests(): HasMany
+    {
+        return $this->hasMany(FriendRequest::class, 'recipient_id');
     }
 }

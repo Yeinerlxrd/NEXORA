@@ -1,13 +1,20 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { login } from '../lib/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const notice = typeof location.state === 'object'
+    && location.state !== null
+    && 'notice' in location.state
+    && typeof location.state.notice === 'string'
+    ? location.state.notice
+    : '';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,17 +34,19 @@ export function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="brand" style={{ justifyContent: 'center' }}>
+        <div className="brand auth-brand">
           <div className="brand-mark">N</div>
           <span>NEXORA</span>
         </div>
-        <h1 style={{ textAlign: 'center', marginBottom: 8 }}>Bienvenido</h1>
-        <p style={{ textAlign: 'center', color: '#9aa6bd', marginBottom: 24 }}>Accede a tu centro de operaciones.</p>
+        <h1 className="auth-title">Bienvenido</h1>
+        <p className="auth-subtitle">Accede a tu centro de operaciones.</p>
+
+        {notice && <p className="notification-notice" role="status">{notice}</p>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-field">
             <label htmlFor="email">Correo</label>
-            <input id="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input id="email" type="email" autoComplete="email" maxLength={255} value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
 
           <div className="form-field">
@@ -45,15 +54,15 @@ export function LoginPage() {
             <input id="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
 
-          {error && <div className="alert">{error}</div>}
+          {error && <div className="alert" role="alert">{error}</div>}
 
-          <button type="submit" className="button primary" style={{ width: '100%', marginTop: 8 }} disabled={loading}>
+          <button type="submit" className="button primary" disabled={loading}>
             {loading ? 'Iniciando...' : 'Iniciar sesión'}
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', marginTop: 18, color: '#9aa6bd' }}>
-          ¿No tienes cuenta? <Link to="/register" style={{ color: '#22d3ee', fontWeight: 700 }}>Regístrate</Link>
+        <p className="auth-alt">
+          ¿No tienes cuenta? <Link to="/register" className="auth-link">Regístrate</Link>
         </p>
       </div>
     </div>

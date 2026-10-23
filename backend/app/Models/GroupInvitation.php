@@ -8,6 +8,11 @@ class GroupInvitation extends Model
 {
     protected $fillable = ['group_id', 'inviter_id', 'invitee_id', 'token_hash', 'expires_at', 'accepted_at', 'status'];
 
+    protected $casts = [
+        'expires_at' => 'datetime',
+        'accepted_at' => 'datetime',
+    ];
+
     public function group()
     {
         return $this->belongsTo(Group::class);
