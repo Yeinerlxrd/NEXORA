@@ -218,6 +218,7 @@ export function Layout() {
             <div className="create-menu">
               <button
                 className="quick-button"
+                aria-label="Crear elemento"
                 aria-expanded={createOpen}
                 aria-haspopup="menu"
                 onClick={() => setCreateOpen(open => !open)}
