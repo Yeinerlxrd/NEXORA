@@ -122,7 +122,13 @@ docker compose build
 docker compose up -d --wait --wait-timeout 120
 ```
 
-Back up MariaDB regularly to storage outside the project directory, protect the backup with appropriate access controls/encryption, and test restoration in a separate disposable database or host before relying on it. The named Docker volume is persistence, not a backup.
+Back up MariaDB regularly with the provided script, which uses the credentials already present inside the Compose service and verifies the gzip archive:
+
+```sh
+./scripts/backup-db.sh
+```
+
+Files are written to the ignored `backups/` directory with mode `0600`. Move them to encrypted storage outside the project directory, and test restoration in a separate disposable database or host before relying on them. The named Docker volume is persistence, not a backup.
 
 ## Environment and security
 
